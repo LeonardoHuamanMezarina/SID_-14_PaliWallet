@@ -1,0 +1,3 @@
+# Permitir el rastreo de todo por defecto
+User-agent: *
+Disallow:
