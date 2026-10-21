@@ -24,4 +24,7 @@ vite.config.ts.timestamp-*
 
 # Logs & tool caches
 .playwright-mcp/
+.agents/
+skills-lock.json
+docs/
 
