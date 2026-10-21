@@ -1,0 +1,4 @@
+<script lang="ts">import BalanceChecker from '$lib/features/balance/components/BalanceChecker.svelte';</script>
+<svelte:head><title>Consulta pública de saldos · MetaVault</title></svelte:head>
+<main><nav><a href="/">← MetaVault</a><a href="/conectar">Entrar a la DApp ↗</a></nav><p class="mv-eyebrow">SIN CONECTAR UNA WALLET</p><h1>Una dirección. Sus saldos.</h1><p>Consulta una red o varias redes compatibles. No necesitas autorizar el acceso a tu wallet.</p><section class="system-surface"><BalanceChecker/></section></main>
+<style>main{max-width:1050px;margin:auto;padding:35px 24px}nav{display:flex;justify-content:space-between;margin-bottom:55px;font-size:13px;color:var(--brand)}main>p:not(.mv-eyebrow){color:var(--ink-muted);font-size:14px;line-height:1.8;margin:18px 0 30px}section{padding:25px;border-radius:22px}</style>

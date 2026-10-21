@@ -1,9 +1,41 @@
 import { ethers } from 'ethers';
 import type { WalletState } from './wallet.types';
-import { connectWallet, switchWalletChain, getEthereumProvider } from './wallet.provider';
+import { connectWallet, switchWalletChain, getEthereumProvider, selectProvider, clearProvider } from './wallet.provider';
 import { SUPPORTED_NETWORKS } from '../network/network.config';
 
 class WalletStore {
+	accountLabel = $state<string | null>(null);
+	labelNotice = $state('');
+	labelLoading = $state(false);
+	private labelRequest = 0;
+
+	async readAccountLabel() {
+		const provider = getEthereumProvider();
+		const address = this.state.account;
+		if (!provider || !address || this.labelLoading) return;
+		const request = ++this.labelRequest;
+		this.labelLoading = true;
+		this.labelNotice = '';
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		try {
+			const result = await Promise.race([
+				provider.request({ method: 'wallet_getAccount' }),
+				new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 10000); })
+			]);
+			if (request !== this.labelRequest || this.state.account !== address) return;
+			if (typeof result?.address === 'string' && result.address.toLowerCase() === address.toLowerCase() && typeof result.label === 'string' && result.label.trim()) {
+				this.accountLabel = result.label.trim().slice(0, 80);
+				this.labelNotice = 'Nombre compartido por Pali; no es una identidad verificada.';
+			} else {
+				this.labelNotice = 'Pali no compartió un nombre para esta dirección. Se conserva la dirección conectada.';
+			}
+		} catch {
+			if (request === this.labelRequest) this.labelNotice = 'Esta conexión no permite leer el nombre de Pali. La dirección sigue disponible.';
+		} finally {
+			clearTimeout(timer);
+			if (request === this.labelRequest) this.labelLoading = false;
+		}
+	}
 	// Rune $state de Svelte 5 para estado reactivo
 	state = $state<WalletState>({
 		status: 'disconnected',
@@ -15,7 +47,8 @@ class WalletStore {
 		error: null
 	});
 
-	private listenersInitialized = false;
+	private listeningProvider: any = null;
+	private removeListeners: (()=>void) | null = null;
 	private pollingTimer: ReturnType<typeof setInterval> | null = null;
 
 	constructor() {
@@ -25,18 +58,22 @@ class WalletStore {
 		}
 	}
 
-	async connect(walletName: string = 'Pali Wallet') {
+	async connect(walletName: string = 'Pali Wallet', providerId = walletName) {
+		if (this.state.status === 'connecting') return;
+		this.disconnect();
 		this.state.status = 'connecting';
 		this.state.error = null;
 		this.state.selectedWallet = walletName;
 
 		try {
+			selectProvider(providerId);
 			const { account, chainId, balance, symbol } = await connectWallet();
 			this.state.account = account;
 			this.state.chainId = chainId;
 			this.state.balance = balance;
 			this.state.symbol = symbol;
 			this.state.status = 'connected';
+			this.initListeners();
 			this.startPolling();
 		} catch (err: any) {
 			this.state.status = 'error';
@@ -45,6 +82,14 @@ class WalletStore {
 	}
 
 	disconnect() {
+		this.labelRequest++;
+		this.accountLabel = null;
+		this.labelNotice = '';
+		this.labelLoading = false;
+		this.removeListeners?.();
+		this.removeListeners = null;
+		this.listeningProvider = null;
+		clearProvider();
 		this.stopPolling();
 		this.state.status = 'disconnected';
 		this.state.account = null;
@@ -60,9 +105,11 @@ class WalletStore {
 
 		this.state.error = null;
 		try {
-			await switchWalletChain(targetNetwork.chainIdHex);
-			this.state.chainId = chainId;
-			this.state.symbol = targetNetwork.nativeCurrency.symbol;
+			const verifiedChainId = await switchWalletChain(targetNetwork.chainIdHex);
+			this.state.chainId = verifiedChainId;
+			if (SUPPORTED_NETWORKS[verifiedChainId]) {
+				this.state.symbol = SUPPORTED_NETWORKS[verifiedChainId].nativeCurrency.symbol;
+			}
 			await this.refreshBalance();
 		} catch (err: any) {
 			this.state.error = err.message || 'Error al cambiar de red.';
@@ -113,24 +160,28 @@ class WalletStore {
 	}
 
 	private initListeners() {
-		if (this.listenersInitialized) return;
 		const rawProvider = getEthereumProvider();
 		if (!rawProvider) return;
-
-		this.listenersInitialized = true;
+		if (this.listeningProvider === rawProvider) return;
+		this.removeListeners?.();
+		this.listeningProvider = rawProvider;
 
 		// Evento de cambio de cuenta
-		rawProvider.on?.('accountsChanged', (accounts: string[]) => {
+		const onAccounts = (accounts: string[]) => {
+			this.labelRequest++;
+			this.accountLabel = null;
+			this.labelNotice = '';
+			this.labelLoading = false;
 			if (!accounts || accounts.length === 0) {
 				this.disconnect();
 			} else if (this.state.status === 'connected') {
 				this.state.account = accounts[0];
 				this.refreshBalance();
 			}
-		});
+		};
 
 		// Evento de cambio de red
-		rawProvider.on?.('chainChanged', async (hexChainId: string) => {
+		const onChain = async (hexChainId: string) => {
 			const chainIdNum = parseInt(hexChainId, 16);
 			this.state.chainId = chainIdNum;
 			if (SUPPORTED_NETWORKS[chainIdNum]) {
@@ -139,7 +190,10 @@ class WalletStore {
 			if (this.state.status === 'connected') {
 				await this.refreshBalance();
 			}
-		});
+		};
+		rawProvider.on?.('accountsChanged', onAccounts);
+		rawProvider.on?.('chainChanged', onChain);
+		this.removeListeners = () => { rawProvider.removeListener?.('accountsChanged',onAccounts); rawProvider.removeListener?.('chainChanged',onChain); };
 	}
 }
 

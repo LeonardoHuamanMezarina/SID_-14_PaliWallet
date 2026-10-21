@@ -37,6 +37,14 @@
 		</span>
 	</div>
 
+	{#if walletStore.state.selectedWallet?.toLowerCase().includes('pali')}
+		<div class="account-name">
+			{#if walletStore.accountLabel}<h3>{walletStore.accountLabel}</h3>{/if}
+			<button class="name-btn" disabled={walletStore.labelLoading} onclick={() => walletStore.readAccountLabel()}>{walletStore.labelLoading ? 'Consultando…' : walletStore.accountLabel ? 'Actualizar nombre de Pali' : 'Consultar nombre de Pali'}</button>
+			{#if walletStore.labelNotice}<p role="status">{walletStore.labelNotice}</p>{/if}
+		</div>
+	{/if}
+
 	<div class="balance-container">
 		<div class="balance-header">
 			<span class="balance-label">Saldo Disponible</span>
@@ -81,6 +89,7 @@
 </div>
 
 <style>
+	.account-name{display:grid;gap:10px}.account-name h3{font-size:23px;overflow-wrap:anywhere}.account-name p{font-size:12px;line-height:1.6;color:var(--text-muted)}.name-btn{text-align:left;color:#A5B4FC;font-size:12px;text-decoration:underline}
 	.connected-card {
 		width: 100%;
 		max-width: 440px;
@@ -91,7 +100,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 20px;
-		box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+		box-shadow:none;
 		animation: fadeIn 0.3s ease-out;
 	}
 
@@ -105,8 +114,8 @@
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
-		background-color: #22c55e;
-		box-shadow: 0 0 8px #22c55e;
+		background-color: var(--surface);
+		box-shadow:none;
 	}
 
 	.wallet-type {
@@ -120,8 +129,8 @@
 		flex-direction: column;
 		align-items: center;
 		padding: 16px;
-		background: rgba(112, 66, 248, 0.06);
-		border: 1px solid rgba(112, 66, 248, 0.2);
+		background: rgba(31, 58, 95, 0.06);
+		border: 1px solid rgba(31, 58, 95, 0.2);
 		border-radius: 14px;
 	}
 
@@ -176,7 +185,7 @@
 	.balance-amount .symbol {
 		font-size: 1.1rem;
 		font-weight: 700;
-		color: #a78bfa;
+		color: var(--ink-muted);
 	}
 
 	.address-box {
@@ -245,7 +254,7 @@
 		padding: 14px;
 		border-radius: 12px;
 		background: rgba(239, 68, 68, 0.1);
-		color: #f87171;
+		color: var(--danger);
 		border: 1px solid rgba(239, 68, 68, 0.2);
 		font-weight: 600;
 		font-size: 0.95rem;
